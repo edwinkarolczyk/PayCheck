@@ -44,7 +44,7 @@ class SheetDialog(tk.Toplevel):
 class PayCheckApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("PayCheck 0.1.2")
+        self.title("PayCheck 0.1.3")
         self.geometry("1220x740")
         self.minsize(1000, 640)
 
@@ -94,7 +94,8 @@ class PayCheckApp(tk.Tk):
         ttk.Spinbox(settings, from_=0, to=100000, increment=1, width=10, textvariable=self.amount_var).grid(row=0, column=5)
         ttk.Label(
             settings,
-            text="Budżet bez daty: PayCheck porównuje transakcje z miesiąca wybranego arkusza.",
+            text="Budżet bez terminu płatności: PayCheck porównuje transakcje z miesiąca wybranego arkusza. Data zakończenia raty/umowy nie jest terminem miesięcznej płatności.",
+            wraplength=1100,
         ).grid(row=1, column=0, columnspan=6, sticky="w", pady=(8, 0))
 
         ttk.Label(root, textvariable=self.summary_var, font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 8))
