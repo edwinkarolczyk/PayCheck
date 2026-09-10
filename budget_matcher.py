@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from datetime import date, datetime
 from difflib import SequenceMatcher
 
 from matcher import MatchSettings, normalize_text, parse_amount, parse_date
@@ -73,15 +72,21 @@ def _budget_score(item: dict, transaction: dict, settings: MatchSettings) -> dic
     if expected is None or actual is None or not _same_sheet_month(item, transaction):
         return {"score": 0, "amount_diff": None}
 
-    diff = abs(abs(actual) - abs(expected))
+    expected_abs = abs(expected)
+    actual_abs = abs(actual)
+    diff = abs(actual_abs - expected_abs)
     allowed = max(
         settings.amount_absolute_tolerance,
-        abs(expected) * settings.amount_percent_tolerance / 100,
+        expected_abs * settings.amount_percent_tolerance / 100,
     )
     amount_score = 1.0 if allowed <= 0 and diff == 0 else max(0.0, 1.0 - diff / max(allowed, 0.01))
     text_score = _text_similarity(item, transaction)
     score = round(amount_score * 70 + text_score * 30)
-    return {"score": score, "amount_diff": round(actual - expected, 2)}
+    return {
+        "score": score,
+        # Różnica oznacza faktyczny wydatek minus plan, bez znaku księgowego banku.
+        "amount_diff": round(actual_abs - expected_abs, 2),
+    }
 
 
 def match_budget(items: list[dict], transactions: list[dict], settings: MatchSettings) -> list[dict]:
