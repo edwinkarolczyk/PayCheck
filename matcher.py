@@ -65,8 +65,10 @@ def _name_score(a: object, b: object) -> float:
 
 
 def _amount_score(expected: float, actual: float, settings: MatchSettings) -> tuple[float, float]:
-    diff = abs(abs(expected) - abs(actual))
-    allowed = max(settings.amount_absolute_tolerance, abs(expected) * settings.amount_percent_tolerance / 100)
+    expected_abs = abs(expected)
+    actual_abs = abs(actual)
+    diff = abs(expected_abs - actual_abs)
+    allowed = max(settings.amount_absolute_tolerance, expected_abs * settings.amount_percent_tolerance / 100)
     if allowed <= 0:
         return (1.0 if diff == 0 else 0.0), diff
     return max(0.0, 1.0 - diff / allowed), diff
@@ -89,7 +91,7 @@ def score_pair(invoice: dict, transaction: dict, settings: MatchSettings) -> dic
     if amount_expected is None or amount_actual is None:
         return {"score": 0, "amount_diff": None, "days_diff": None}
 
-    amount_score, amount_diff = _amount_score(amount_expected, amount_actual, settings)
+    amount_score, _ = _amount_score(amount_expected, amount_actual, settings)
     date_score, days_diff = _date_score(parse_date(invoice.get("date")), parse_date(transaction.get("date")), settings)
     name_score = _name_score(invoice.get("counterparty"), transaction.get("counterparty"))
 
@@ -105,7 +107,7 @@ def score_pair(invoice: dict, transaction: dict, settings: MatchSettings) -> dic
     )
     return {
         "score": score,
-        "amount_diff": round(amount_actual - amount_expected, 2),
+        "amount_diff": round(abs(amount_actual) - abs(amount_expected), 2),
         "days_diff": days_diff,
         "name_similarity": round(name_score * 100),
     }
