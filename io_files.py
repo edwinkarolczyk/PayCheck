@@ -63,11 +63,10 @@ def _rows_from_csv(path: str | Path) -> tuple[list[str], list[list[str]]]:
     sample = text[:4096]
     try:
         dialect = csv.Sniffer().sniff(sample, delimiters=";,\t")
+        rows = list(csv.reader(text.splitlines(), dialect))
     except csv.Error:
-        dialect = csv.excel
-        dialect.delimiter = ";"
+        rows = list(csv.reader(text.splitlines(), delimiter=";"))
 
-    rows = list(csv.reader(text.splitlines(), dialect))
     if not rows:
         return [], []
     return rows[0], rows[1:]
@@ -82,7 +81,12 @@ def _read_table(path: str | Path) -> tuple[list[object], list[list[object]]]:
     raise ValueError("Obsługiwane formaty: XLSX i CSV.")
 
 
-def _convert_rows(headers: list[object], rows: Iterable[list[object]], aliases: dict[str, tuple[str, ...]], required: tuple[str, ...]) -> list[dict]:
+def _convert_rows(
+    headers: list[object],
+    rows: Iterable[list[object]],
+    aliases: dict[str, tuple[str, ...]],
+    required: tuple[str, ...],
+) -> list[dict]:
     mapping = _map_headers(headers, aliases)
     missing = [key for key in required if key not in mapping]
     if missing:
@@ -101,12 +105,22 @@ def _convert_rows(headers: list[object], rows: Iterable[list[object]], aliases: 
 
 def load_invoices(path: str | Path) -> list[dict]:
     headers, rows = _read_table(path)
-    return _convert_rows(headers, rows, INVOICE_ALIASES, ("counterparty", "amount", "date"))
+    return _convert_rows(
+        headers,
+        rows,
+        INVOICE_ALIASES,
+        ("counterparty", "amount", "date"),
+    )
 
 
 def load_bank_statement(path: str | Path) -> list[dict]:
     headers, rows = _read_table(path)
-    return _convert_rows(headers, rows, BANK_ALIASES, ("counterparty", "amount", "date"))
+    return _convert_rows(
+        headers,
+        rows,
+        BANK_ALIASES,
+        ("counterparty", "amount", "date"),
+    )
 
 
 def save_results(path: str | Path, results: list[dict]) -> None:
@@ -135,7 +149,10 @@ def save_results(path: str | Path, results: list[dict]) -> None:
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
     for column_cells in ws.columns:
-        width = min(45, max(12, max(len(str(cell.value or "")) for cell in column_cells) + 2))
+        width = min(
+            45,
+            max(12, max(len(str(cell.value or "")) for cell in column_cells) + 2),
+        )
         ws.column_dimensions[column_cells[0].column_letter].width = width
 
     wb.save(path)
