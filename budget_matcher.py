@@ -66,10 +66,22 @@ def _same_sheet_month(item: dict, transaction: dict) -> bool:
     return year is None or tx_date.year == year
 
 
+def _direction_matches(item: dict, actual: float) -> bool:
+    entry_type = item.get("entry_type", "expense")
+    if entry_type == "income":
+        return actual > 0
+    return actual < 0
+
+
 def _budget_score(item: dict, transaction: dict, settings: MatchSettings) -> dict:
     expected = parse_amount(item.get("amount"))
     actual = parse_amount(transaction.get("amount"))
-    if expected is None or actual is None or not _same_sheet_month(item, transaction):
+    if (
+        expected is None
+        or actual is None
+        or not _same_sheet_month(item, transaction)
+        or not _direction_matches(item, actual)
+    ):
         return {"score": 0, "amount_diff": None}
 
     expected_abs = abs(expected)
@@ -84,7 +96,6 @@ def _budget_score(item: dict, transaction: dict, settings: MatchSettings) -> dic
     score = round(amount_score * 70 + text_score * 30)
     return {
         "score": score,
-        # Różnica oznacza faktyczny wydatek minus plan, bez znaku księgowego banku.
         "amount_diff": round(actual_abs - expected_abs, 2),
     }
 
