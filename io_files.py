@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import csv
+import re
 from pathlib import Path
 from typing import Iterable
 
 from openpyxl import Workbook, load_workbook
+from pypdf import PdfReader
 
 
 INVOICE_ALIASES = {
@@ -20,6 +22,9 @@ BANK_ALIASES = {
     "date": ("data operacji", "data ksiegowania", "data księgowania", "data"),
     "title": ("tytul", "tytuł", "opis", "tytul operacji", "tytuł operacji"),
 }
+
+_DATE_RE = re.compile(r"^\s*(\d{2}\.\d{2}\.\d{4})\b")
+_AMOUNT_RE = re.compile(r"(?<!\d)([-+]?\s*\d{1,3}(?:[ .]\d{3})*,\d{2})\s*PLN\b", re.IGNORECASE)
 
 
 def _normalize_header(value: object) -> str:
@@ -72,13 +77,118 @@ def _rows_from_csv(path: str | Path) -> tuple[list[str], list[list[str]]]:
     return rows[0], rows[1:]
 
 
+def _parse_pln_amount(value: str) -> float:
+    normalized = value.replace(" ", "").replace(".", "").replace(",", ".")
+    return float(normalized)
+
+
+def _extract_counterparty(description: str) -> str:
+    for label in ("Odbiorca:", "Nadawca:"):
+        match = re.search(
+            rf"{label}\s*(.+?)(?=\s+(?:Tytuł:|Tytul:|Nr rachunku:|Rachunek:)|$)",
+            description,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            return " ".join(match.group(1).split()).strip(" ,;-")
+
+    card = re.search(
+        r"\bw\s+(.+?)(?=,\s*[A-ZĄĆĘŁŃÓŚŹŻ][A-ZĄĆĘŁŃÓŚŹŻ .-]{1,30}(?:,\s*[A-Z]{2})?\b|$)",
+        description,
+        flags=re.IGNORECASE,
+    )
+    if card:
+        return " ".join(card.group(1).split()).strip(" ,;-")
+
+    return description[:120].strip()
+
+
+def _extract_title(description: str) -> str:
+    match = re.search(r"(?:Tytuł|Tytul):\s*(.+)$", description, flags=re.IGNORECASE)
+    if match:
+        return " ".join(match.group(1).split())
+    return description
+
+
+def _parse_bank_pdf_text(text: str) -> list[dict]:
+    lines = [" ".join(line.split()) for line in text.splitlines() if line.strip()]
+    blocks: list[str] = []
+    current: list[str] = []
+
+    for line in lines:
+        if _DATE_RE.match(line):
+            if current:
+                blocks.append(" ".join(current))
+            current = [line]
+        elif current:
+            current.append(line)
+
+    if current:
+        blocks.append(" ".join(current))
+
+    transactions: list[dict] = []
+    for block in blocks:
+        date_match = _DATE_RE.match(block)
+        if not date_match:
+            continue
+
+        amount_matches = list(_AMOUNT_RE.finditer(block))
+        if not amount_matches:
+            continue
+
+        transaction_date = date_match.group(1)
+        rest = block[date_match.end():].strip()
+
+        booking_match = re.match(r"^(?:-|\d{2}\.\d{2}\.\d{4})\b", rest)
+        if booking_match:
+            rest = rest[booking_match.end():].strip()
+
+        amount_match = _AMOUNT_RE.search(rest)
+        if not amount_match:
+            continue
+
+        description = rest[:amount_match.start()].strip(" -|;")
+        if not description:
+            continue
+
+        amount = _parse_pln_amount(amount_match.group(1))
+        transactions.append(
+            {
+                "date": transaction_date,
+                "counterparty": _extract_counterparty(description),
+                "amount": amount,
+                "title": _extract_title(description),
+                "description": description,
+                "source": "PDF",
+            }
+        )
+
+    if not transactions:
+        raise ValueError(
+            "Nie znaleziono transakcji w PDF. Jeśli to skan/zdjęcie bez warstwy tekstowej, "
+            "wyeksportuj wyciąg jako PDF tekstowy, CSV albo XLSX."
+        )
+    return transactions
+
+
+def _rows_from_pdf(path: str | Path) -> list[dict]:
+    reader = PdfReader(str(path))
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    if not text.strip():
+        raise ValueError(
+            "PDF nie zawiera tekstu do odczytu. Prawdopodobnie jest skanem; "
+            "użyj PDF tekstowego, CSV albo XLSX."
+        )
+    return _parse_bank_pdf_text(text)
+
+
 def _read_table(path: str | Path) -> tuple[list[object], list[list[object]]]:
     suffix = Path(path).suffix.lower()
     if suffix == ".xlsx":
         return _rows_from_xlsx(path)
     if suffix == ".csv":
         return _rows_from_csv(path)
-    raise ValueError("Obsługiwane formaty: XLSX i CSV.")
+    raise ValueError("Obsługiwane formaty tabel: XLSX i CSV.")
 
 
 def _convert_rows(
@@ -114,6 +224,9 @@ def load_invoices(path: str | Path) -> list[dict]:
 
 
 def load_bank_statement(path: str | Path) -> list[dict]:
+    if Path(path).suffix.lower() == ".pdf":
+        return _rows_from_pdf(path)
+
     headers, rows = _read_table(path)
     return _convert_rows(
         headers,
