@@ -52,7 +52,7 @@ def load_budget_sheet(path: str | Path, sheet_name: str) -> list[dict]:
 
         items: list[dict] = []
         for row_no, row in enumerate(ws.iter_rows(min_row=2, max_col=4, values_only=True), start=2):
-            date_value, institution, name, monthly = row
+            end_date, institution, name, monthly = row
             name_text = str(name or "").strip()
             if not name_text or not isinstance(monthly, (int, float)) or monthly <= 0:
                 continue
@@ -70,7 +70,10 @@ def load_budget_sheet(path: str | Path, sheet_name: str) -> list[dict]:
                     "display_name": name_text,
                     "institution": institution_text,
                     "amount": float(monthly),
-                    "date": date_value if date_value else "",
+                    # W arkuszu budżetu kolumna A oznacza datę zakończenia raty/umowy,
+                    # a nie termin płatności w wybranym miesiącu. Nie używamy jej do matchingu.
+                    "date": "",
+                    "end_date": end_date if end_date else "",
                     "source_type": "budget",
                     "source_sheet": sheet_name,
                     "source_row": row_no,
