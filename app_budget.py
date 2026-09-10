@@ -21,7 +21,9 @@ class SheetDialog(tk.Toplevel):
 
         frame = ttk.Frame(self, padding=14)
         frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text="Wybierz miesiąc / arkusz z budżetu:").pack(anchor="w", pady=(0, 8))
+        ttk.Label(frame, text="Wybierz miesiąc / arkusz z budżetu:").pack(
+            anchor="w", pady=(0, 8)
+        )
         self.combo = ttk.Combobox(frame, values=sheets, state="readonly", width=34)
         self.combo.pack(fill="x")
         if sheets:
@@ -30,7 +32,9 @@ class SheetDialog(tk.Toplevel):
         buttons = ttk.Frame(frame)
         buttons.pack(fill="x", pady=(12, 0))
         ttk.Button(buttons, text="Anuluj", command=self.destroy).pack(side="right")
-        ttk.Button(buttons, text="Wczytaj", command=self._accept).pack(side="right", padx=(0, 8))
+        ttk.Button(buttons, text="Wczytaj", command=self._accept).pack(
+            side="right", padx=(0, 8)
+        )
         self.bind("<Return>", lambda _event: self._accept())
         self.wait_window(self)
 
@@ -44,7 +48,7 @@ class SheetDialog(tk.Toplevel):
 class PayCheckApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("PayCheck 0.1.3")
+        self.title("PayCheck 0.1.4")
         self.geometry("1220x740")
         self.minsize(1000, 640)
 
@@ -66,7 +70,9 @@ class PayCheckApp(tk.Tk):
         root = ttk.Frame(self, padding=14)
         root.pack(fill="both", expand=True)
 
-        ttk.Label(root, text="PayCheck", font=("Segoe UI", 22, "bold")).pack(anchor="w")
+        ttk.Label(root, text="PayCheck", font=("Segoe UI", 22, "bold")).pack(
+            anchor="w"
+        )
         ttk.Label(
             root,
             text="Porównanie faktur lub miesięcznego budżetu z wyciągiem bankowym",
@@ -74,10 +80,18 @@ class PayCheckApp(tk.Tk):
 
         controls = ttk.Frame(root)
         controls.pack(fill="x", pady=(0, 10))
-        ttk.Button(controls, text="1. Wczytaj Excel", command=self._load_excel).pack(side="left", padx=(0, 8))
-        ttk.Button(controls, text="2. Wczytaj wyciąg", command=self._load_bank).pack(side="left", padx=(0, 8))
-        ttk.Button(controls, text="3. Porównaj", command=self._compare).pack(side="left", padx=(0, 8))
-        ttk.Button(controls, text="4. Zapisz wynik", command=self._save).pack(side="left")
+        ttk.Button(controls, text="1. Wczytaj Excel", command=self._load_excel).pack(
+            side="left", padx=(0, 8)
+        )
+        ttk.Button(controls, text="2. Wczytaj wyciąg", command=self._load_bank).pack(
+            side="left", padx=(0, 8)
+        )
+        ttk.Button(controls, text="3. Porównaj", command=self._compare).pack(
+            side="left", padx=(0, 8)
+        )
+        ttk.Button(controls, text="4. Zapisz wynik", command=self._save).pack(
+            side="left"
+        )
 
         info = ttk.Frame(root)
         info.pack(fill="x", pady=(0, 10))
@@ -87,22 +101,55 @@ class PayCheckApp(tk.Tk):
         settings = ttk.LabelFrame(root, text="Tolerancja dopasowania", padding=10)
         settings.pack(fill="x", pady=(0, 10))
         ttk.Label(settings, text="Data ± dni:").grid(row=0, column=0, sticky="w")
-        ttk.Spinbox(settings, from_=0, to=60, width=8, textvariable=self.days_var).grid(row=0, column=1, padx=(5, 18))
+        ttk.Spinbox(
+            settings, from_=0, to=60, width=8, textvariable=self.days_var
+        ).grid(row=0, column=1, padx=(5, 18))
         ttk.Label(settings, text="Kwota ± %:").grid(row=0, column=2, sticky="w")
-        ttk.Spinbox(settings, from_=0, to=100, increment=0.5, width=8, textvariable=self.percent_var).grid(row=0, column=3, padx=(5, 18))
-        ttk.Label(settings, text="Kwota min. ± zł:").grid(row=0, column=4, sticky="w")
-        ttk.Spinbox(settings, from_=0, to=100000, increment=1, width=10, textvariable=self.amount_var).grid(row=0, column=5)
+        ttk.Spinbox(
+            settings,
+            from_=0,
+            to=100,
+            increment=0.5,
+            width=8,
+            textvariable=self.percent_var,
+        ).grid(row=0, column=3, padx=(5, 18))
+        ttk.Label(settings, text="Kwota min. ± zł:").grid(
+            row=0, column=4, sticky="w"
+        )
+        ttk.Spinbox(
+            settings,
+            from_=0,
+            to=100000,
+            increment=1,
+            width=10,
+            textvariable=self.amount_var,
+        ).grid(row=0, column=5)
         ttk.Label(
             settings,
-            text="Budżet bez terminu płatności: PayCheck porównuje transakcje z miesiąca wybranego arkusza. Data zakończenia raty/umowy nie jest terminem miesięcznej płatności.",
+            text=(
+                "Budżet bez terminu płatności: PayCheck porównuje transakcje z "
+                "miesiąca wybranego arkusza. Data zakończenia raty/umowy nie jest "
+                "terminem miesięcznej płatności."
+            ),
             wraplength=1100,
         ).grid(row=1, column=0, columnspan=6, sticky="w", pady=(8, 0))
 
-        ttk.Label(root, textvariable=self.summary_var, font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 8))
+        ttk.Label(
+            root,
+            textvariable=self.summary_var,
+            font=("Segoe UI", 10, "bold"),
+        ).pack(anchor="w", pady=(0, 8))
 
         columns = (
-            "name", "institution", "date", "amount", "status", "score",
-            "bank_date", "bank_amount", "diff",
+            "name",
+            "institution",
+            "date",
+            "amount",
+            "status",
+            "score",
+            "bank_date",
+            "bank_amount",
+            "diff",
         )
         self.tree = ttk.Treeview(root, columns=columns, show="headings")
         headings = {
@@ -130,6 +177,22 @@ class PayCheckApp(tk.Tk):
         for key in columns:
             self.tree.heading(key, text=headings[key])
             self.tree.column(key, width=widths[key], anchor="w")
+
+        self.tree.tag_configure(
+            "paid",
+            background="#D9F2D9",
+            foreground="#145A14",
+        )
+        self.tree.tag_configure(
+            "review",
+            background="#FFF0BF",
+            foreground="#7A4B00",
+        )
+        self.tree.tag_configure(
+            "missing",
+            background="#F8D7DA",
+            foreground="#842029",
+        )
 
         scrollbar = ttk.Scrollbar(root, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
@@ -185,7 +248,9 @@ class PayCheckApp(tk.Tk):
         except Exception as exc:
             messagebox.showerror("Błąd importu", str(exc))
             return
-        self.bank_info_var.set(f"Wyciąg: {Path(path).name} — {len(self.transactions)} operacji")
+        self.bank_info_var.set(
+            f"Wyciąg: {Path(path).name} — {len(self.transactions)} operacji"
+        )
         self.results = []
         self._refresh_tree()
 
@@ -212,7 +277,8 @@ class PayCheckApp(tk.Tk):
         review = sum(r.get("status") == "DO SPRAWDZENIA" for r in self.results)
         missing = sum(r.get("status") == "BRAK" for r in self.results)
         self.summary_var.set(
-            f"Razem: {len(self.results)} | Opłacone: {paid} | Do sprawdzenia: {review} | Brak: {missing}"
+            f"Razem: {len(self.results)} | Opłacone: {paid} | "
+            f"Do sprawdzenia: {review} | Brak: {missing}"
         )
 
     def _refresh_tree(self) -> None:
@@ -220,6 +286,12 @@ class PayCheckApp(tk.Tk):
         for row in self.results:
             name = row.get("display_name") or row.get("invoice_no", "")
             institution = row.get("institution") or row.get("counterparty", "")
+            status = row.get("status", "")
+            tag = {
+                "OPŁACONA": "paid",
+                "DO SPRAWDZENIA": "review",
+                "BRAK": "missing",
+            }.get(status, "")
             self.tree.insert(
                 "",
                 "end",
@@ -228,12 +300,13 @@ class PayCheckApp(tk.Tk):
                     institution,
                     row.get("date", ""),
                     row.get("amount", ""),
-                    row.get("status", ""),
+                    status,
                     row.get("match_score", ""),
                     row.get("bank_date", ""),
                     row.get("bank_amount", ""),
                     row.get("amount_diff", ""),
                 ),
+                tags=(tag,) if tag else (),
             )
 
     def _save(self) -> None:
