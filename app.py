@@ -11,7 +11,7 @@ from matcher import MatchSettings, match_invoices
 class PayCheckApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("PayCheck 0.1.0")
+        self.title("PayCheck 0.1.1")
         self.geometry("1180x720")
         self.minsize(980, 620)
 
@@ -116,7 +116,12 @@ class PayCheckApp(tk.Tk):
     def _load_bank(self) -> None:
         path = filedialog.askopenfilename(
             title="Wybierz wyciąg bankowy",
-            filetypes=[("Wyciąg bankowy", "*.xlsx *.csv"), ("Excel", "*.xlsx"), ("CSV", "*.csv")],
+            filetypes=[
+                ("Wyciąg bankowy", "*.xlsx *.csv *.pdf"),
+                ("PDF", "*.pdf"),
+                ("Excel", "*.xlsx"),
+                ("CSV", "*.csv"),
+            ],
         )
         if not path:
             return
