@@ -5,6 +5,7 @@ from tkinter import messagebox, ttk
 
 from app_budget import PayCheckApp
 from budget_summary import summarize_budget
+from decision_store import apply_decisions, remove_decision, save_decision
 from history_store import (
     append_snapshot,
     compare_snapshots,
@@ -149,15 +150,34 @@ class PayCheckHistoryApp(PayCheckApp):
         budget_menu.add_command(label="Podsumowanie budżetu", command=self._show_budget_summary)
         menu.add_cascade(label="Budżet", menu=budget_menu)
 
+        decision_menu = tk.Menu(menu, tearoff=False)
+        decision_menu.add_command(label="✓ Uznaj zaznaczone za opłacone", command=self._approve_selected)
+        decision_menu.add_command(label="✗ Odrzuć zaznaczone dopasowanie", command=self._reject_selected)
+        decision_menu.add_separator()
+        decision_menu.add_command(label="Cofnij ręczną decyzję", command=self._undo_selected)
+        menu.add_cascade(label="Decyzja", menu=decision_menu)
+
         history_menu = tk.Menu(menu, tearoff=False)
         history_menu.add_command(label="Pokaż historię porównań", command=self._show_history)
         menu.add_cascade(label="Historia", menu=history_menu)
         self.config(menu=menu)
 
+        self.row_menu = tk.Menu(self, tearoff=False)
+        self.row_menu.add_command(label="✓ Uznaj za opłacone", command=self._approve_selected)
+        self.row_menu.add_command(label="✗ Odrzuć dopasowanie", command=self._reject_selected)
+        self.row_menu.add_separator()
+        self.row_menu.add_command(label="Cofnij ręczną decyzję", command=self._undo_selected)
+        self.tree.bind("<Button-3>", self._show_row_menu)
+
     def _compare(self) -> None:
         super()._compare()
         if not self.results:
             return
+
+        remembered = apply_decisions(self.results)
+        if remembered:
+            self._refresh_tree()
+            self._refresh_summary(remembered)
 
         source_label = self.budget_sheet or self.invoice_info_var.get()
         snapshot = make_snapshot(
@@ -179,6 +199,99 @@ class PayCheckHistoryApp(PayCheckApp):
                 self.summary_var.get()
                 + f" | Od ostatniego sprawdzenia opłacono: {len(changes['newly_paid'])} ({names})"
             )
+
+    def _refresh_summary(self, remembered: int = 0) -> None:
+        paid = sum(r.get("status") == "OPŁACONA" for r in self.results)
+        review = sum(r.get("status") == "DO SPRAWDZENIA" for r in self.results)
+        missing = sum(r.get("status") == "BRAK" for r in self.results)
+        text = f"Razem: {len(self.results)} | Opłacone: {paid} | Do sprawdzenia: {review} | Brak: {missing}"
+        if remembered:
+            text += f" | Pamięć decyzji: {remembered}"
+        self.summary_var.set(text)
+
+    def _selected_row(self) -> dict | None:
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showinfo("Decyzja", "Zaznacz najpierw pozycję w tabeli.")
+            return None
+        index = self.tree.index(selected[0])
+        if index < 0 or index >= len(self.results):
+            return None
+        return self.results[index]
+
+    def _show_row_menu(self, event) -> None:
+        iid = self.tree.identify_row(event.y)
+        if iid:
+            self.tree.selection_set(iid)
+            self.tree.focus(iid)
+            self.row_menu.tk_popup(event.x_root, event.y_root)
+
+    def _approve_selected(self) -> None:
+        row = self._selected_row()
+        if row is None:
+            return
+        if not row.get("bank_date") and not row.get("bank_amount"):
+            messagebox.showinfo("Decyzja", "Ta pozycja nie ma dopasowanego przelewu do zatwierdzenia.")
+            return
+        if row.get("status") not in {"DO SPRAWDZENIA", "OPŁACONA"}:
+            messagebox.showinfo("Decyzja", "Ręczne zatwierdzanie dotyczy dopasowanych płatności.")
+            return
+
+        save_decision(row, "approved")
+        row["manual_decision"] = "approved"
+        row["status"] = "OPŁACONA"
+        self._refresh_tree()
+        self._refresh_summary(1)
+        messagebox.showinfo(
+            "Zapamiętano",
+            "To dopasowanie zostało uznane za opłacone i będzie pamiętane przy następnym porównaniu.",
+        )
+
+    def _reject_selected(self) -> None:
+        row = self._selected_row()
+        if row is None:
+            return
+        if not row.get("bank_date") and not row.get("bank_amount"):
+            messagebox.showinfo("Decyzja", "Ta pozycja nie ma dopasowanego przelewu do odrzucenia.")
+            return
+        if row.get("status") not in {"DO SPRAWDZENIA", "OPŁACONA"}:
+            messagebox.showinfo("Decyzja", "Można odrzucić tylko istniejące dopasowanie płatności.")
+            return
+
+        key = save_decision(row, "rejected")
+        row["_decision_key"] = key
+        row["manual_decision"] = "rejected"
+        row["rejected_bank_date"] = row.get("bank_date", "")
+        row["rejected_bank_amount"] = row.get("bank_amount", "")
+        row["rejected_bank_counterparty"] = row.get("bank_counterparty", "")
+        row["rejected_bank_title"] = row.get("bank_title", "")
+        row["status"] = "BRAK"
+        row["bank_date"] = ""
+        row["bank_amount"] = ""
+        row["bank_counterparty"] = ""
+        row["bank_title"] = ""
+        row["amount_diff"] = ""
+        row["days_diff"] = ""
+        self._refresh_tree()
+        self._refresh_summary(1)
+        messagebox.showinfo(
+            "Zapamiętano",
+            "To dopasowanie zostało odrzucone i nie będzie ponownie uznawane przy tym samym przelewie.",
+        )
+
+    def _undo_selected(self) -> None:
+        row = self._selected_row()
+        if row is None:
+            return
+        if not row.get("manual_decision") and not row.get("_decision_key"):
+            messagebox.showinfo("Decyzja", "Dla tej pozycji nie ma ręcznej decyzji do cofnięcia.")
+            return
+        if not remove_decision(row):
+            messagebox.showinfo("Decyzja", "Nie znaleziono zapisanej decyzji dla tej pozycji.")
+            return
+
+        messagebox.showinfo("Decyzja", "Ręczna decyzja została cofnięta. PayCheck przeliczy dopasowania ponownie.")
+        self._compare()
 
     def _show_budget_summary(self) -> None:
         if self.source_mode != "budget" or not self.items:
