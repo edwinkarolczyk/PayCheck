@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from app_budget import PayCheckApp
+from budget_summary import summarize_budget
 from history_store import (
     append_snapshot,
     compare_snapshots,
@@ -86,12 +87,68 @@ class HistoryWindow(tk.Toplevel):
         )
 
 
+class BudgetSummaryWindow(tk.Toplevel):
+    def __init__(self, parent: tk.Misc, sheet_name: str, items: list[dict]) -> None:
+        super().__init__(parent)
+        self.title(f"Podsumowanie budżetu — {sheet_name}")
+        self.geometry("860x650")
+        self.minsize(720, 520)
+
+        summary = summarize_budget(items)
+        root = ttk.Frame(self, padding=14)
+        root.pack(fill="both", expand=True)
+
+        ttk.Label(root, text=f"Podsumowanie — {sheet_name}", font=("Segoe UI", 17, "bold")).pack(anchor="w")
+        ttk.Label(
+            root,
+            text=(
+                f"Wpływy: {summary['income_total']:.2f} zł   |   "
+                f"Wydatki: {summary['expense_total']:.2f} zł   |   "
+                f"Bilans: {summary['balance']:+.2f} zł"
+            ),
+            font=("Segoe UI", 11, "bold"),
+        ).pack(anchor="w", pady=(6, 12))
+
+        ttk.Label(root, text="Kategorie", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        cat_tree = ttk.Treeview(root, columns=("category", "amount"), show="headings", height=10)
+        cat_tree.heading("category", text="Kategoria")
+        cat_tree.heading("amount", text="Suma miesięczna")
+        cat_tree.column("category", width=360, anchor="w")
+        cat_tree.column("amount", width=160, anchor="e")
+        for name, amount in summary["categories"].items():
+            cat_tree.insert("", "end", values=(name, f"{amount:.2f} zł"))
+        cat_tree.pack(fill="x", pady=(4, 14))
+
+        ttk.Label(root, text="Raty według banku", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        bank_tree = ttk.Treeview(root, columns=("bank", "amount"), show="headings", height=7)
+        bank_tree.heading("bank", text="Bank")
+        bank_tree.heading("amount", text="Suma rat")
+        bank_tree.column("bank", width=360, anchor="w")
+        bank_tree.column("amount", width=160, anchor="e")
+        if summary["banks"]:
+            for bank, amount in summary["banks"].items():
+                bank_tree.insert("", "end", values=(bank, f"{amount:.2f} zł"))
+        else:
+            bank_tree.insert("", "end", values=("Brak rozpoznanych rat bankowych", "0.00 zł"))
+        bank_tree.pack(fill="x", pady=(4, 8))
+
+        ttk.Label(
+            root,
+            text=f"Łączna suma rat bankowych: {summary['installments_total']:.2f} zł",
+            font=("Segoe UI", 11, "bold"),
+        ).pack(anchor="w", pady=(2, 0))
+
+
 class PayCheckHistoryApp(PayCheckApp):
     def __init__(self) -> None:
         super().__init__()
-        self.title("PayCheck 0.2.1")
+        self.title("PayCheck 0.2.2")
 
         menu = tk.Menu(self)
+        budget_menu = tk.Menu(menu, tearoff=False)
+        budget_menu.add_command(label="Podsumowanie budżetu", command=self._show_budget_summary)
+        menu.add_cascade(label="Budżet", menu=budget_menu)
+
         history_menu = tk.Menu(menu, tearoff=False)
         history_menu.add_command(label="Pokaż historię porównań", command=self._show_history)
         menu.add_cascade(label="Historia", menu=history_menu)
@@ -122,6 +179,12 @@ class PayCheckHistoryApp(PayCheckApp):
                 self.summary_var.get()
                 + f" | Od ostatniego sprawdzenia opłacono: {len(changes['newly_paid'])} ({names})"
             )
+
+    def _show_budget_summary(self) -> None:
+        if self.source_mode != "budget" or not self.items:
+            messagebox.showinfo("Budżet", "Najpierw wczytaj plik budżetu i wybierz miesiąc.")
+            return
+        BudgetSummaryWindow(self, self.budget_sheet or "wybrany miesiąc", self.items)
 
     def _show_history(self) -> None:
         if not load_history():
