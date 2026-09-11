@@ -8,6 +8,8 @@ from typing import Iterable
 from openpyxl import Workbook, load_workbook
 from pypdf import PdfReader
 
+from bank_formats_320 import parse_mt940
+
 
 INVOICE_ALIASES = {
     "counterparty": ("kontrahent", "odbiorca", "firma", "nazwa"),
@@ -17,10 +19,22 @@ INVOICE_ALIASES = {
 }
 
 BANK_ALIASES = {
-    "counterparty": ("odbiorca", "kontrahent", "nadawca", "nazwa", "opis kontrahenta"),
-    "amount": ("kwota", "wartosc", "wartość", "kwota operacji"),
-    "date": ("data operacji", "data ksiegowania", "data księgowania", "data"),
-    "title": ("tytul", "tytuł", "opis", "tytul operacji", "tytuł operacji"),
+    "counterparty": (
+        "odbiorca", "kontrahent", "nadawca", "nazwa", "opis kontrahenta",
+        "nazwa kontrahenta", "beneficjent", "zleceniodawca",
+    ),
+    "amount": (
+        "kwota", "wartosc", "wartość", "kwota operacji", "kwota transakcji",
+        "kwota w walucie rachunku", "obroty",
+    ),
+    "date": (
+        "data operacji", "data ksiegowania", "data księgowania", "data",
+        "data transakcji", "data waluty",
+    ),
+    "title": (
+        "tytul", "tytuł", "opis", "tytul operacji", "tytuł operacji",
+        "opis operacji", "szczegóły", "szczegoly",
+    ),
 }
 
 _DATE_RE = re.compile(r"^\s*(\d{2}\.\d{2}\.\d{4})\b")
@@ -132,10 +146,6 @@ def _parse_bank_pdf_text(text: str) -> list[dict]:
         if not date_match:
             continue
 
-        amount_matches = list(_AMOUNT_RE.finditer(block))
-        if not amount_matches:
-            continue
-
         transaction_date = date_match.group(1)
         rest = block[date_match.end():].strip()
 
@@ -143,10 +153,13 @@ def _parse_bank_pdf_text(text: str) -> list[dict]:
         if booking_match:
             rest = rest[booking_match.end():].strip()
 
-        amount_match = _AMOUNT_RE.search(rest)
-        if not amount_match:
+        amount_matches = list(_AMOUNT_RE.finditer(rest))
+        if not amount_matches:
             continue
 
+        # W opisach kartowych bank potrafi umieścić kwotę informacyjną, a dopiero
+        # na końcu właściwą zaksięgowaną kwotę ze znakiem. Bierzemy ostatnią.
+        amount_match = amount_matches[-1]
         description = rest[:amount_match.start()].strip(" -|;")
         if not description:
             continue
@@ -166,7 +179,7 @@ def _parse_bank_pdf_text(text: str) -> list[dict]:
     if not transactions:
         raise ValueError(
             "Nie znaleziono transakcji w PDF. Jeśli to skan/zdjęcie bez warstwy tekstowej, "
-            "wyeksportuj wyciąg jako PDF tekstowy, CSV albo XLSX."
+            "wyeksportuj wyciąg jako PDF tekstowy, CSV, XLSX albo MT940/STA."
         )
     return transactions
 
@@ -177,7 +190,7 @@ def _rows_from_pdf(path: str | Path) -> list[dict]:
     if not text.strip():
         raise ValueError(
             "PDF nie zawiera tekstu do odczytu. Prawdopodobnie jest skanem; "
-            "użyj PDF tekstowego, CSV albo XLSX."
+            "użyj PDF tekstowego, CSV, XLSX albo MT940/STA."
         )
     return _parse_bank_pdf_text(text)
 
@@ -224,8 +237,11 @@ def load_invoices(path: str | Path) -> list[dict]:
 
 
 def load_bank_statement(path: str | Path) -> list[dict]:
-    if Path(path).suffix.lower() == ".pdf":
+    suffix = Path(path).suffix.lower()
+    if suffix == ".pdf":
         return _rows_from_pdf(path)
+    if suffix in {".sta", ".mt940", ".940", ".txt"}:
+        return parse_mt940(path)
 
     headers, rows = _read_table(path)
     return _convert_rows(
