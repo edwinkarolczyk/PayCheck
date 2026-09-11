@@ -38,7 +38,7 @@ if errorlevel 1 goto :error
 
 echo.
 echo Buduje PayCheck.exe...
-%PY_CMD% -m PyInstaller --noconfirm --clean --onefile --windowed --name PayCheck app_210.py
+%PY_CMD% -m PyInstaller --noconfirm --clean --onefile --windowed --name PayCheck app_300.py
 if errorlevel 1 goto :error
 
 echo.
