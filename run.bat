@@ -30,6 +30,6 @@ if errorlevel 1 (
   exit /b 1
 )
 
-%PY_CMD% app_210.py
+%PY_CMD% app_300.py
 
 endlocal
