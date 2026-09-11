@@ -18,7 +18,7 @@ def test_parse_bank_pdf_text_from_statement_layout():
 
     assert len(rows) == 3
     assert rows[0]["date"] == "10.09.2026"
-    assert rows[0]["amount"] == 3.00
+    assert rows[0]["amount"] == -3.00
     assert "metalbox" in rows[0]["counterparty"].lower()
 
     assert rows[1]["amount"] == -1000.00
